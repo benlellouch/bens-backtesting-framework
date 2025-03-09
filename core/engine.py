@@ -1,6 +1,10 @@
 import pandas as pd
 from tqdm import tqdm
-from strategy import Strategy
+
+from core.strategy import Strategy
+from core.order import Order
+from core.side import Side
+from core.trade import Trade
 
 
 class Engine:
@@ -39,8 +43,28 @@ class Engine:
 
             # run strategy on current bar
             self._strategy.on_bar()
-            print(idx)
 
     def _fill_orders(self) -> None:
-        """Fills orders from previous period"""
-        pass
+        """Fills buy and sell orders, creating new trade orders and adjusting cash balance"""
+        for order in self._strategy.orders:
+            if self._can_buy(order) or self._can_sell(order):
+                trade = Trade(
+                    ticker=order.ticker,
+                    side=order.side,
+                    price=self._data.loc[self._current_index]["Open"],
+                    size=order.size,
+                    type=order.type,
+                    index=self._current_index,
+                )
+
+                self._strategy.add_trade(trade)
+                self._cash -= trade.price * trade.size
+
+    def _can_buy(self, order: Order):
+        return (
+            order.side == Side.BUY
+            and self._cash >= self._data.loc[self._current_index]["Open"] * order.size
+        )
+
+    def _can_sell(self, order: Order):
+        return order.side == Side.SELL and self._strategy.position_size >= order.size

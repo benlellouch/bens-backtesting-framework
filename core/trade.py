@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from side import Side
+from core.side import Side
 
 
 @dataclass(frozen=True)
@@ -13,3 +13,6 @@ class Trade:
     size: int
     index: int
     type: str
+
+    def __repr__(self) -> str:
+        return f"<Trade: {self.index} {self.ticker} {self.size}@{self.price}>"

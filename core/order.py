@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from side import Side
+from core.side import Side
 
 
 @dataclass(frozen=True)
