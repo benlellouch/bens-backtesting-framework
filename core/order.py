@@ -11,4 +11,5 @@ class Order:
     side: Side
     size: int
     index: int
+    limit_price: float
     type: str = "market"
