@@ -1,5 +1,6 @@
 from typing import Tuple
 
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -19,6 +20,8 @@ class Engine:
         strategy: Strategy = None,
         ohlc_data: pd.DataFrame = None,
     ) -> None:
+        self._risk_free_rate = 0
+        self._trading_days = 252
         self._initial_cash = self._cash = initial_cash
         self._strategy = strategy
         self._data = ohlc_data
@@ -49,9 +52,10 @@ class Engine:
             # run strategy on current bar
             self._strategy.on_bar()
 
-            self._cash_series[idx] = self.cash
+            self._cash_series[idx] = self._cash
             self._stock_series[idx] = (
-                self._strategy.position_size * self.data.loc[self._current_index][CLOSE]
+                self._strategy.position_size
+                * self._data.loc[self._current_index][CLOSE]
             )
 
     def _fill_orders(self) -> None:
@@ -131,8 +135,23 @@ class Engine:
     def _can_sell(self, order: Order):
         return order.side == Side.SELL and self._strategy.position_size >= order.size
 
+    def _get_max_drawdown(self, close: pd.Series) -> float:
+        roll_max = close.cummax()
+        daily_drawdown = close / roll_max - 1.0
+        return daily_drawdown.min() * 100
+
     def _get_stats(self):
         metrics = {}
+        portfolio = pd.DataFrame(
+            {"stock": self._stock_series, "cash": self._cash_series}
+        )
+        portfolio["total_aum"] = portfolio["stock"] + portfolio["cash"]
+        aum = portfolio["total_aum"]
+        portfolio_bh = (
+            self._initial_cash
+            / self._data.loc[self._data.index[0]][OPEN]
+            * self._data.Close
+        )
 
         total_return = 100 * (
             (
@@ -145,4 +164,30 @@ class Engine:
         )
 
         metrics["total_return"] = total_return
+        metrics["exposure_pct"] = (
+            (portfolio["stock"] / portfolio["total_aum"]) * 100
+        ).mean()
+        metrics["returns_annualized"] = (
+            (aum.iloc[-1] / aum.iloc[0])
+            ** (1 / ((aum.index[-1] - aum.index[0]).days / 365))
+            - 1
+        ) * 100
+        metrics["returns_bh_annualized"] = (
+            (portfolio_bh.iloc[-1] / portfolio_bh.iloc[0])
+            ** (1 / ((portfolio_bh.index[-1] - portfolio_bh.index[0]).days / 365))
+            - 1
+        ) * 100
+        metrics["volatility_ann"] = (
+            aum.pct_change().std() * np.sqrt(self._trading_days) * 100
+        )
+        metrics["volatility_bh_ann"] = (
+            portfolio_bh.pct_change().std() * np.sqrt(self._trading_days) * 100
+        )
+        metrics["sharpe_ratio"] = (
+            metrics["returns_annualized"] - self._risk_free_rate
+        ) / metrics["volatility_ann"]
+        metrics["sharpe_ratio_bh"] = (
+            metrics["returns_bh_annualized"] - self._risk_free_rate
+        ) / metrics["volatility_bh_ann"]
+        metrics["max_drawdown"] = self._get_max_drawdown(self._data.Close)
         return metrics
