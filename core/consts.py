@@ -1,6 +1,6 @@
-OPEN = 'Open'
-CLOSE = 'Close'
-LOW = 'Low'
-HIGH = 'High'
-LIMIT = 'limit'
-MARKET = 'market'
+OPEN = "Open"
+CLOSE = "Close"
+LOW = "Low"
+HIGH = "High"
+LIMIT = "limit"
+MARKET = "market"

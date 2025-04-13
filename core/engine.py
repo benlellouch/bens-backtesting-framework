@@ -23,6 +23,8 @@ class Engine:
         self._strategy = strategy
         self._data = ohlc_data
         self._current_index = None
+        self._cash_series = {}
+        self._stock_series = {}
 
     def set_stategy(self, strategy: Strategy) -> None:
         self._strategy = strategy
@@ -47,6 +49,11 @@ class Engine:
             # run strategy on current bar
             self._strategy.on_bar()
 
+            self._cash_series[idx] = self.cash
+            self._stock_series[idx] = (
+                self._strategy.position_size * self.data.loc[self._current_index][CLOSE]
+            )
+
     def _fill_orders(self) -> None:
         """Fills buy and sell orders, creating new trade orders and adjusting cash balance"""
         for order in self._strategy.orders:
@@ -64,27 +71,55 @@ class Engine:
                 self._strategy.add_trade(trade)
                 self._cash -= trade.price * trade.size
 
-    def _determine_fill_price(self, order:Order) -> Tuple[bool, float]:
-        fill_price=self._data.loc[self._current_index][OPEN]
+    def _determine_fill_price(self, order: Order) -> Tuple[bool, float]:
+        fill_price = self._data.loc[self._current_index][OPEN]
         can_fill = False
         if self._can_buy(order):
             can_fill = True
             if order.type == LIMIT:
                 if order.limit_price >= self._data.loc[self._current_index][LOW]:
                     fill_price = order.limit_price
-                    print(self._current_index, 'Buy Filled. ', "limit",order.limit_price," / low", self._data.loc[self._current_index]['Low'])
+                    print(
+                        self._current_index,
+                        "Buy Filled. ",
+                        "limit",
+                        order.limit_price,
+                        " / low",
+                        self._data.loc[self._current_index]["Low"],
+                    )
                 else:
                     can_fill = False
-                    print(self._current_index,'Buy NOT filled. ', "limit",order.limit_price," / low", self._data.loc[self._current_index]['Low'])
+                    print(
+                        self._current_index,
+                        "Buy NOT filled. ",
+                        "limit",
+                        order.limit_price,
+                        " / low",
+                        self._data.loc[self._current_index]["Low"],
+                    )
         if self._can_sell(order):
             can_fill = True
             if order.type == LIMIT:
                 if order.limit_price <= self._data.loc[self._current_index][HIGH]:
                     fill_price = order.limit_price
-                    print(self._current_index,'Sell filled. ', "limit",order.limit_price," / high", self._data.loc[self._current_index]['High'])
+                    print(
+                        self._current_index,
+                        "Sell filled. ",
+                        "limit",
+                        order.limit_price,
+                        " / high",
+                        self._data.loc[self._current_index]["High"],
+                    )
                 else:
-                    print(self._current_index,'Sell filled NOT filled. ', "limit",order.limit_price," / high", self._data.loc[self._current_index]['High'])
-        
+                    print(
+                        self._current_index,
+                        "Sell NOT filled. ",
+                        "limit",
+                        order.limit_price,
+                        " / high",
+                        self._data.loc[self._current_index]["High"],
+                    )
+
         return can_fill, fill_price
 
     def _can_buy(self, order: Order):
@@ -98,6 +133,16 @@ class Engine:
 
     def _get_stats(self):
         metrics = {}
-        total_return = 100 * ((self._data.loc[self._current_index][CLOSE] * self._strategy.position_size + self._cash) / self._initial_cash -1)
-        metrics['total_return'] = total_return
+
+        total_return = 100 * (
+            (
+                self._data.loc[self._current_index][CLOSE]
+                * self._strategy.position_size
+                + self._cash
+            )
+            / self._initial_cash
+            - 1
+        )
+
+        metrics["total_return"] = total_return
         return metrics
